@@ -1,0 +1,127 @@
+@page "/"
+@inject OpenAIClient OpenAIClient
+@inject ILogger<Chat> Logger
+@rendermode InteractiveServer
+
+<h3>Chat with your local model</h3>
+
+<div class="mb-3">
+    <label for="modelSelect" class="form-label"><strong>Model:</strong></label>
+    <select id="modelSelect" @bind="selectedModel" class="form-select" style="max-width:400px;">
+        @foreach (var model in availableModels)
+        {
+            <option value="@model">@model</option>
+        }
+    </select>
+</div>
+
+<div class="mb-3">
+    <label for="userPrompt" class="form-label"><strong>Your message:</strong></label>
+    <textarea id="userPrompt" @bind="userInput" class="form-control" rows="4" style="max-width:600px;" placeholder="Ask something..."></textarea>
+</div>
+
+<div class="mb-3">
+    <button class="btn btn-primary" @onclick="SendMessage" disabled="@isGenerating">Send</button>
+    <button class="btn btn-danger ms-2" @onclick="StopGeneration" disabled="@(!isGenerating)">Stop</button>
+</div>
+
+<p><strong>Status:</strong> @status</p>
+
+<div class="mb-3">
+    <p><strong>Response:</strong></p>
+    <div class="border rounded p-3" style="max-height:400px; overflow-y:auto;">@response</div>
+</div>
+
+@code {
+    private string? userInput;
+    private string? response;
+    private string status = "Waiting for input...";
+    private string selectedModel = "smollm2";
+    private List<string> availableModels = new();
+    private bool isGenerating = false;
+    private CancellationTokenSource? cancellationTokenSource;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            status = "Loading available models...";
+            var models = (await OpenAIClient.GetOpenAIModelClient().GetModelsAsync()).Value;
+            foreach (var model in models)
+            {
+                availableModels.Add(model.Id);
+            }
+
+            if (availableModels.Any())
+            {
+                selectedModel = availableModels[0];
+                status = "Models loaded successfully.";
+            }
+            else
+            {
+                status = "No models available.";
+            }
+        }
+        catch (Exception ex)
+        {
+            status = $"Error loading models: {ex.Message}";
+            Logger.LogError(ex, "Error loading models");
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(userInput))
+        {
+            status = "Please enter some text first.";
+            return;
+        }
+
+        try
+        {
+            status = "Sending request...";
+            isGenerating = true;
+            StateHasChanged();
+
+            response = string.Empty;
+            var chatClient = OpenAIClient.GetChatClient(selectedModel);
+            
+            cancellationTokenSource = new CancellationTokenSource();
+
+            var messages = new[] { ChatMessage.CreateUserMessage(userInput) };
+            status = "Generating response...";	
+            await foreach (var message in chatClient.CompleteChatStreamingAsync(messages, null, cancellationTokenSource.Token))
+            {
+                foreach (var update in message.ContentUpdate) {
+                    response += update.Text;
+                }
+                StateHasChanged();
+            }
+
+            status = "Response received.";
+        }
+        catch (OperationCanceledException)
+        {
+            status = "Generation stopped by user.";
+            Logger.LogInformation("Chat generation was cancelled by the user");
+        }
+        catch (Exception ex)
+        {
+            status = $"Error: {ex.Message}";
+            Logger.LogError(ex, "Error sending message");
+        }
+        finally
+        {
+            isGenerating = false;
+            cancellationTokenSource?.Dispose();
+            cancellationTokenSource = null;
+        }
+    }
+
+    private void StopGeneration()
+    {
+        cancellationTokenSource?.Cancel();
+        status = "Stopping generation...";
+        StateHasChanged();
+    }
+}

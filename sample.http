@@ -1,0 +1,23 @@
+POST http://model-runner.docker.internal/engines/llama.cpp/v1/chat/completions
+Content-Type: application/json
+
+{
+    "model": "ai/smollm2:135M-Q2_K",
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are a helpful assistant."
+        },
+        {
+            "role": "user",
+            "content": "What do you know about Sweden?"
+        }
+    ]
+}
+
+###
+GET http://model-runner.docker.internal/engines/llama.cpp/v1/models
+
+
+###
+GET http://host.docker.internal:11434/engines/llama.cpp/v1/models
