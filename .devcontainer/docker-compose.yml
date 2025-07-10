@@ -1,0 +1,15 @@
+services:
+  dev:
+    image: "mcr.microsoft.com/devcontainers/dotnet:1-9.0-bookworm"
+    models:
+      - smollm2
+      - phi4
+    volumes:
+      - ..:/workspace:cached
+    command: /bin/sh -c "while sleep 1000; do :; done"
+
+models:
+  smollm2:
+    model: ai/smollm2
+  phi4:
+    model: ai/phi4

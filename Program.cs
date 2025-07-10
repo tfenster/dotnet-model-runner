@@ -10,9 +10,12 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddSingleton(sp =>
 {
+    var baseUrl = Environment.GetEnvironmentVariable("SMOLLM2_URL")
+        ?? throw new InvalidOperationException("SMOLLM2_URL environment variable is not set.");
+    var endpoint = baseUrl.Replace("/v1", "/llama.cpp/v1");
     var options = new OpenAIClientOptions
     {
-        Endpoint = new Uri("http://model-runner.docker.internal/engines/llama.cpp/v1"),
+        Endpoint = new Uri(endpoint),
     };
     return new OpenAIClient(new ApiKeyCredential("unused"), options);
 });
